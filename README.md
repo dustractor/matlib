@@ -1,0 +1,1 @@
+This addon allows you to save and load materials. It does not come with any materials but it will make the task of building your own library easier, as it allows you to save materials to a library without having to worry about saving your current blend file, and its interface has been designed to be as non-intrusive as possible.

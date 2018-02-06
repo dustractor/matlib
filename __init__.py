@@ -31,21 +31,22 @@ bl_info = {
 import sqlite3
 import pathlib
 import bpy
+import bpy.utils.previews
+icons_d = bpy.utils.previews.new()
+iconpath = str(pathlib.Path(__file__).parent/"file_save.png")
+icons_d.load("file_save",iconpath,"IMAGE")
 
-DBNAME = "matlibdata.1"
+DBNAME = "matlibdata.sqlitedb"
 
 
 class MaterialsLibrarian(sqlite3.Connection):
 
     def __init__(self,name,**kwargs):
-        """ Setup the database connection"""
         super().__init__(name,**kwargs)
-        self.cu = self.cursor() # a cursor for single-value queries
-        self.cu.row_factory = lambda c,r:r[0] # gets a singleton row-factory
+        self.cu = self.cursor()
+        self.cu.row_factory = lambda c,r:r[0]
         self.executescript(
-        """
-        pragma foreign_keys=ON;
-        pragma recursive_triggers=ON;
+        """ pragma foreign_keys=ON; pragma recursive_triggers=ON;
 
         create table if not exists paths (
         id integer primary key, name text, mtime real,
@@ -93,11 +94,6 @@ class MaterialsLibrarian(sqlite3.Connection):
 
     @active_path.setter
     def active_path(self,path_id):
-        """ A) Insert the path_id into the active_path table
-            B) Do cleanup of data removal for blends which no longer exist.
-            C) add blends which are new or changed.
-            D) Finally, commit this transaction.
-        """
         self.execute("insert into active_path (path_id) values (?)",
                 (path_id,))
         self.prune_gone_blends(path_id)
@@ -106,12 +102,10 @@ class MaterialsLibrarian(sqlite3.Connection):
 
     @property
     def materials(self):
-        """ materials_view yields materials from the active path only """
         yield from self.execute("select id,name from materials_view")
 
 
     def add_blends_in_path(self,path_id):
-        """ Add materials from blends unless the modification time is same. """
         path = self.cu.execute(
                 "select name from paths where id=?",
                 (path_id,)).fetchone()
@@ -141,7 +135,6 @@ class MaterialsLibrarian(sqlite3.Connection):
             print(f"added {blend} with {blend_matcount} {word}.")
 
     def prune_gone_blends(self,path_id):
-        """ If the blend is not found on the filesystem, remove from db. """
         for i,b in self.execute("select id,name from blends where path_id=?",
                 (path_id,)):
             if not pathlib.Path(b).exists():
@@ -153,7 +146,6 @@ class MaterialsLibrary:
     _handle = None
     @property
     def cx(self):
-        """ The connection is deferred until this attribute is accessed. """
         if not self._handle:
             self._handle = sqlite3.connect(
                     bpy.utils.user_resource("CONFIG",path=DBNAME),
@@ -281,7 +273,10 @@ class MatLib(bpy.types.PropertyGroup):
         row = layout.row()
         row.label(" ",icon="BLANK1")
         subrow = row.row(align=True)
-        subrow.operator("matlib.send_material",text="",icon="FORWARD")
+        subrow.operator(
+                "matlib.send_material",
+                text="",
+                icon_value=icons_d["file_save"].icon_id)
         prefs = context.user_preferences.addons[__name__].preferences
         ap = db.cx.active_path
         if not prefs.hide_path_option or (ap==None):
@@ -333,8 +328,7 @@ class MatLibPrefs(bpy.types.AddonPreferences):
 
     hide_path_option = bpy.props.BoolProperty(
             name="Hide the Path Selector",
-            description="Disable the option to change paths in the Blender UI."
-            " NOTE: don't set this until you've added a path",
+            description="Don't display the path menu once one has been set.",
             default=False)
 
     displaymode = bpy.props.EnumProperty(
@@ -354,18 +348,14 @@ class MatLibPrefs(bpy.types.AddonPreferences):
         row.label("Interface Options:")
         box.prop(self,"displaymode")
         box.prop(self,"hide_path_option")
+        if self.hide_path_option:
+            box.menu("MATLIB_MT_path_menu")
 
 _classes = [
-    MatLibPrefs,
-    MatLib,
-    MATLIB_OT_send_material,
-    MATLIB_OT_load_material,
-    MATLIB_OT_select_path,
-    MATLIB_OT_add_path,
-    MATLIB_MT_path_menu,
-    MATLIB_MT_mats_menu,
-    MATLIB_PT_panel
-    ]
+    MatLibPrefs, MatLib, MATLIB_PT_panel,
+    MATLIB_OT_send_material, MATLIB_OT_load_material,
+    MATLIB_OT_select_path, MATLIB_OT_add_path,
+    MATLIB_MT_path_menu, MATLIB_MT_mats_menu ]
 
 def register():
     list(map(bpy.utils.register_class,_classes))
