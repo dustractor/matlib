@@ -216,8 +216,11 @@ class MATLIB_OT_load_material(bpy.types.Operator):
                 (self.mat_id,)).fetchone()
         with bpy.data.libraries.load(blend) as (data_from,data_to):
             data_to.materials = [matname]
+        mat = data_to.materials[0]
+        mat.use_fake_user = False
+
         if context.material_slot:
-            context.material_slot.material = data_to.materials[0]
+            context.material_slot.material = mat
         return {"FINISHED"}
 
 
