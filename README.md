@@ -1,6 +1,8 @@
 matlib
 ===
 
+[Download this zip for easy blender install](https://github.com/dustractor/matlib/releases/download/alpha1/matlib.zip)
+
 ---
 
 ##### for saving and loading materials #####
