@@ -32,6 +32,7 @@ import sqlite3
 import pathlib
 import bpy
 import bpy.utils.previews
+
 icons_d = bpy.utils.previews.new()
 iconpath = str(pathlib.Path(__file__).parent/"file_save.png")
 icons_d.load("file_save",iconpath,"IMAGE")
@@ -336,11 +337,13 @@ class MatLibPrefs(bpy.types.AddonPreferences):
 
     displaymode = bpy.props.EnumProperty(
             name="Interface Display Mode",
-            description="UI can be shown above, below or panel",
+            description="Save preferences and restart for these options",
             items=(
         ("PANEL","Materials Panel","a panel in material properties"),
         ("ABOVE","Above Material Selector","above the materials selector"),
-        ("BELOW","Below Material Selector","below the materials selector")),
+        ("BELOW","Below Material Selector","below the materials selector"),
+        ("SPECIALS","Material Specials Menu",
+            "only on the material specials menu")),
             default="ABOVE")
 
     def draw(self,context):
@@ -360,24 +363,35 @@ _classes = [
     MATLIB_OT_select_path, MATLIB_OT_add_path,
     MATLIB_MT_path_menu, MATLIB_MT_mats_menu ]
 
+def draw_detach(*types):
+    for t in types:
+        try:
+            t.remove(MATLIB_PT_panel.draw)
+        except:
+            pass
+
 def register():
     list(map(bpy.utils.register_class,_classes))
     bpy.types.WindowManager.matlib = bpy.props.PointerProperty(type=MatLib)
     prefs = bpy.context.user_preferences.addons[__name__].preferences
     if prefs.displaymode == "ABOVE":
         bpy.types.CYCLES_PT_context_material.prepend(MATLIB_PT_panel.draw)
+        bpy.types.MATERIAL_PT_context_material.prepend(MATLIB_PT_panel.draw)
     elif prefs.displaymode == "BELOW":
         bpy.types.CYCLES_PT_context_material.append(MATLIB_PT_panel.draw)
+        bpy.types.MATERIAL_PT_context_material.append(MATLIB_PT_panel.draw)
+    elif prefs.displaymode == "SPECIALS":
+        bpy.types.MATERIAL_MT_specials.append(MATLIB_PT_panel.draw)
     ap = db.cx.active_path
     if ap:
         db.cx.prune_gone_blends(ap)
         db.cx.commit()
 
 def unregister():
-    try:
-        bpy.types.CYCLES_PT_context_material.remove(MATLIB_PT_panel.draw)
-    except:
-        pass
+    draw_detach(
+            bpy.types.CYCLES_PT_context_material,
+            bpy.types.MATERIAL_PT_context_material,
+            bpy.types.MATERIAL_MT_specials)
     del bpy.types.WindowManager.matlib
     list(map(bpy.utils.unregister_class,_classes))
 
