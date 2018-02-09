@@ -7,22 +7,18 @@ matlib
 
 ##### for saving and loading materials #####
 
-The interface is comprised of a button to send the current material to the current library, a menu to choose or add library paths, and a menu to choose from materials in the current library.
-
-
+The entire interface has been made to fit all upon a single row.  It is comprised of a button to send the current material to the current library, a menu to choose or add library paths, and a menu to choose from materials in the current library.
 
 ---
 
 ### User Preferences ###
 
-Since all that fits on a single row, there is the option of where to display the row.
+There are options for where the interface is shown:
 
-* Above the material selector  
+* Above the material selector  [default]  
 * Below the material selector  
 * As a standard panel  
 * On the Material Specials Menu (this adds zero visual clutter)
-
-Everybody is going to love the default. (Above)  I just know it.
 
 
 There is also an option which allows you to have the path-selector hide *after at least one path has been added as a library.*  This is for the hard-core set-it-and-forget-it types.
