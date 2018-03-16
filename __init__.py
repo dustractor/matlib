@@ -218,10 +218,12 @@ class MATLIB_OT_load_material(bpy.types.Operator):
         with bpy.data.libraries.load(blend) as (data_from,data_to):
             data_to.materials = [matname]
         mat = data_to.materials[0]
-        mat.use_fake_user = False
-
+        prefs = context.user_preferences.addons[__name__].preferences
+        if not context.material_slot and prefs.add_a_slot:
+            bpy.ops.object.material_slot_add()
         if context.material_slot:
             context.material_slot.material = mat
+            mat.use_fake_user = False
         return {"FINISHED"}
 
 
@@ -345,6 +347,11 @@ class MatLibPrefs(bpy.types.AddonPreferences):
         ("SPECIALS","Material Specials Menu",
             "only on the material specials menu")),
             default="ABOVE")
+    add_a_slot = bpy.props.BoolProperty(
+            name="Add Material Slot",
+            description="While loading, add a material slot to objects"
+            " without any material slots",
+            default=True)
 
     def draw(self,context):
         layout = self.layout
