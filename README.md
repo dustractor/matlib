@@ -1,7 +1,9 @@
 matlib
 ===
 
-[Download this zip for easy blender install](https://github.com/dustractor/matlib/releases/download/alpha1/matlib.zip)
+[Download this zip for easy blender 2.79 (or below) install](https://github.com/dustractor/matlib/releases/download/alpha1/matlib.zip)
+
+sorry no 'easy' zip for 2.8 yet
 
 ---
 
