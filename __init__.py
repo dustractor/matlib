@@ -17,20 +17,30 @@
 # ##### END GPL LICENSE BLOCK #####
 
 bl_info = {
-        "name": "matlib",
-        "description":"Librarian of Materials",
-        "author":"dustractor@gmail.com",
-        "version":(1,0),
+        "name": "MatLib",
+        "description":"Materials Librarian",
+        "author":"Shams Kitz",
+        "version":(3,0),
         "blender":(2,80,0),
-        "location":"appropriate",
+        "location":"Properties",
         "warning":"",
         "wiki_url":"",
         "tracker_url":"https://github.com/dustractor/matlib.git",
-        "category": "Material Library" }
+        "category": "Material"
+        }
 
-import sqlite3,pathlib,bpy,bpy.utils.previews 
-DBNAME = "matlibdata.sqlitedb"
-icons_d = None
+import sqlite3
+import pathlib
+import bpy
+
+
+DBNAME = "materials_librarian.sqlitedb"
+
+def _(c=None,r=[]):
+    if c:
+        r.append(c)
+        return c
+    return r
 
 
 class MaterialsLibrarian(sqlite3.Connection):
@@ -39,25 +49,41 @@ class MaterialsLibrarian(sqlite3.Connection):
         self.cu = self.cursor()
         self.cu.row_factory = lambda c,r:r[0]
         self.executescript(
-        """ pragma foreign_keys=ON; pragma recursive_triggers=ON;
+        """
+        pragma foreign_keys=ON;
+        pragma recursive_triggers=ON;
+
         create table if not exists paths (
-        id integer primary key, name text, mtime real,
+        id integer primary key,
+        name text,
+        mtime real,
         unique (name) on conflict replace);
+
         create table if not exists blends (
-        id integer primary key, path_id integer, name text, mtime real,
+        id integer primary key,
+        path_id integer,
+        name text,
+        mtime real,
         unique (name) on conflict replace,
         foreign key (path_id) references paths(id) on delete cascade);
+
         create table if not exists materials (
-        id integer primary key, blend_id integer, name text,
+        id integer primary key,
+        blend_id integer,
+        name text,
         unique (name) on conflict replace,
         foreign key (blend_id) references blends(id) on delete cascade);
+
         create table if not exists active_path (
-        state integer default 0, path_id integer,
+        state integer default 0,
+        path_id integer,
         unique (state) on conflict replace,
         foreign key (path_id) references paths(id) on delete cascade);
+
         create view if not exists materials_view as
         select id,name from materials where blend_id in (select id from blends
         where path_id=(select path_id from active_path where state=0));
+
         """)
         self.commit()
     def path(self,path_id):
@@ -84,6 +110,8 @@ class MaterialsLibrarian(sqlite3.Connection):
     @property
     def materials(self):
         yield from self.execute("select id,name from materials_view")
+    def material_names(self):
+        return self.cu.execute("select name from materials_view").fetchall()
     def add_blends_in_path(self,path_id):
         path = self.cu.execute(
                 "select name from paths where id=?",
@@ -126,7 +154,9 @@ class MaterialsLibrary:
     def cx(self):
         if not self._handle:
             self._handle = sqlite3.connect(
-                    bpy.utils.user_resource("CONFIG",path=DBNAME),
+                    bpy.utils.user_resource(
+                        "DATAFILES",
+                        path="matlib.db"),
                     factory=MaterialsLibrarian)
         return self._handle
 
@@ -134,9 +164,10 @@ class MaterialsLibrary:
 db = MaterialsLibrary()
 
 
+@_
 class MATLIB_OT_send_material(bpy.types.Operator):
     bl_idname = "matlib.send_material"
-    bl_label = "Send Material"
+    bl_label = "Send to Library"
     bl_description = "Send current material to the library"
     bl_options = {"INTERNAL"}
     force_overwrite: bpy.props.BoolProperty(
@@ -177,6 +208,7 @@ class MATLIB_OT_send_material(bpy.types.Operator):
         return {"FINISHED"}
 
 
+@_
 class MATLIB_OT_load_material(bpy.types.Operator):
     bl_idname = "matlib.load_material"
     bl_label = "Load Material"
@@ -200,6 +232,7 @@ class MATLIB_OT_load_material(bpy.types.Operator):
         return {"FINISHED"}
 
 
+@_
 class MATLIB_OT_select_path(bpy.types.Operator):
     bl_idname = "matlib.select_path"
     bl_label = "Select Path"
@@ -214,6 +247,10 @@ class MATLIB_OT_select_path(bpy.types.Operator):
                 return {"FINISHED"}
             else:
                 return {"CANCELLED"}
+        elif event.alt:
+            db.cx.execute("delete from paths where id=?",(self.path_id,))
+            db.cx.commit()
+            return {"FINISHED"}
         return self.execute(context)
     def execute(self,context):
         print("selecting path",self.path_id)
@@ -221,9 +258,10 @@ class MATLIB_OT_select_path(bpy.types.Operator):
         return {"FINISHED"}
 
 
+@_
 class MATLIB_OT_add_path(bpy.types.Operator):
     bl_idname = "matlib.add_path"
-    bl_label = "Add Path..."
+    bl_label = "Add Library Path..."
     bl_options = {"INTERNAL"}
     directory: bpy.props.StringProperty(
             subtype="DIR_PATH",
@@ -243,8 +281,9 @@ class MATLIB_OT_add_path(bpy.types.Operator):
         return {"FINISHED"}
 
 
+@_
 class MATLIB_MT_path_menu(bpy.types.Menu):
-    bl_label = "Library Path Selector"
+    bl_label = "Add/Change Library"
     bl_description = "Choose/add Library Paths"
     def draw(self,context):
         layout = self.layout
@@ -253,60 +292,57 @@ class MATLIB_MT_path_menu(bpy.types.Menu):
             layout.operator(
                     "matlib.select_path",
                     text=path,
-                    icon=["BLANK1","FILE_TICK"][oid==ap]).path_id = oid
+                    icon=["FILE_FOLDER","BOOKMARKS"][oid==ap]).path_id = oid
         layout.separator()
         layout.operator("matlib.add_path").directory = ""
 
 
+@_
 class MATLIB_MT_mats_menu(bpy.types.Menu):
     bl_label = "Material Selector"
     bl_description = "Menu of Materials"
     def draw(self,context):
+        i = -1
         for i,mat in db.cx.materials:
-            self.layout.operator("matlib.load_material",text=mat).mat_id = i
+            self.layout.operator("matlib.load_material",text=mat,icon=["TRIA_RIGHT","FF"][mat in bpy.data.materials]).mat_id = i
+        if i == -1 and db.cx.active_path:
+            self.layout.label(text="No materials found in any blends in path:%s!"%db.cx.path(db.cx.active_path))
 
 
-def matlibdraw(self,context):
+@_
+class MATLIB_MT_main_menu(bpy.types.Menu):
+    bl_label = "Librarian"
+    bl_description = "MatLib Main Menu"
+    def draw(self,context):
+        if context.area.spaces.active.context == "MATERIAL":
+            has_name = context.material.name in db.cx.material_names()
+            self.layout.operator(
+                    "matlib.send_material",
+                    emboss=not has_name,
+                    icon=["FORWARD","FILE_TICK"][has_name])
+            self.layout.menu(
+                    "MATLIB_MT_mats_menu",
+                    icon="MATERIAL")
+            self.layout.menu(
+                    "MATLIB_MT_path_menu",
+                    icon="FILEBROWSER")
+
+
+def header_draw(self,context):
     if context.area.spaces.active.context == "MATERIAL":
-        row = self.layout.row()
-        row.label(text=" ",icon="BLANK1")
-        subrow = row.row(align=True)
-        subrow.operator(
-                "matlib.send_material",
-                text="",
-                icon_value=icons_d["file_save"].icon_id)
-        ap = db.cx.active_path
-        subrow.menu(
-                "MATLIB_MT_path_menu",
-                text="",
-                icon=["FILE_FOLDER","BOOKMARKS"][ap!=None])
-        row.menu(
-                "MATLIB_MT_mats_menu",
-                text="",
-                icon="MATERIAL_DATA")
-
-_classes = [
-    MATLIB_OT_send_material,
-    MATLIB_OT_load_material,
-    MATLIB_OT_select_path,
-    MATLIB_OT_add_path,
-    MATLIB_MT_path_menu,
-    MATLIB_MT_mats_menu ]
+        layout = self.layout.row(align=True)
+        layout.menu("MATLIB_MT_main_menu",text="",icon="THREE_DOTS")
 
 def register():
-    global icons_d
-    icons_d = bpy.utils.previews.new()
-    iconpath = str(pathlib.Path(__file__).parent/"file_save.png")
-    icons_d.load("file_save",iconpath,"IMAGE")
-    list(map(bpy.utils.register_class,_classes))
-    bpy.types.PROPERTIES_HT_header.append(matlibdraw)
+    list(map(bpy.utils.register_class,_()))
+    bpy.types.PROPERTIES_HT_header.append(header_draw)
     ap = db.cx.active_path
     if ap:
         db.cx.prune_gone_blends(ap)
         db.cx.commit()
 
 def unregister():
-    bpy.types.PROPERTIES_HT_header.remove(matlibdraw)
-    list(map(bpy.utils.unregister_class,_classes))
     bpy.utils.previews.remove(icons_d)
+    bpy.types.PROPERTIES_PT_navigation_bar.remove(header_draw)
+    list(map(bpy.utils.unregister_class,_()))
 
