@@ -34,8 +34,6 @@ import pathlib
 import bpy
 
 
-DBNAME = "materials_librarian.sqlitedb"
-
 def _(c=None,r=[]):
     if c:
         r.append(c)
