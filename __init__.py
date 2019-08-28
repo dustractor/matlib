@@ -153,7 +153,7 @@ class MaterialsLibrary:
         if not self._handle:
             self._handle = sqlite3.connect(
                     bpy.utils.user_resource(
-                        "DATAFILES",
+                        "CONFIG",
                         path="matlib.db"),
                     factory=MaterialsLibrarian)
         return self._handle
