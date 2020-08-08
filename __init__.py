@@ -313,8 +313,11 @@ class MATLIB_MT_main_menu(bpy.types.Menu):
     bl_description = "MatLib Main Menu"
     def draw(self,context):
         if context.area.spaces.active.context == "MATERIAL":
-            has_name = context.material.name in db.cx.material_names()
-            self.layout.operator(
+            if context.material:
+                has_name = context.material.name in db.cx.material_names()
+            else:
+                has_name = False
+            op = self.layout.operator(
                     "matlib.send_material",
                     emboss=not has_name,
                     icon=["FORWARD","FILE_TICK"][has_name])
