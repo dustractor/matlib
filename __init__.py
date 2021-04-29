@@ -20,7 +20,7 @@ bl_info = {
         "name": "MatLib",
         "description":"Materials Librarian",
         "author":"Shams Kitz",
-        "version":(3,0),
+        "version":(3,1),
         "blender":(2,80,0),
         "location":"Properties",
         "warning":"",
@@ -222,11 +222,16 @@ class MATLIB_OT_load_material(bpy.types.Operator):
         with bpy.data.libraries.load(blend) as (data_from,data_to):
             data_to.materials = [matname]
         mat = data_to.materials[0]
-        if not context.material_slot:
-            bpy.ops.object.material_slot_add()
-        if context.material_slot:
+        mat.use_fake_user = False
+        if hasattr(context,"material_slot"):
+            if not context.material_slot:
+                bpy.ops.object.material_slot_add()
             context.material_slot.material = mat
-            mat.use_fake_user = False
+        elif hasattr(context.view_layer.objects.active,"material_slots"):
+            if not context.view_layer.objects.active.material_slots:
+                bpy.ops.object.material_slot_add()
+            ob = context.view_layer.objects.active
+            ob.material_slots[ob.active_material_index].material = mat
         return {"FINISHED"}
 
 
@@ -311,39 +316,56 @@ class MATLIB_MT_mats_menu(bpy.types.Menu):
 class MATLIB_MT_main_menu(bpy.types.Menu):
     bl_label = "Librarian"
     bl_description = "MatLib Main Menu"
+    @classmethod
+    def poll(self,context):
+        return (
+            (
+                hasattr(context.area.spaces.active,"context") and
+                context.area.spaces.active.context == "MATERIAL"
+            ) or
+            (
+                context.area.ui_type == "ShaderNodeTree"
+            )
+        )
+
     def draw(self,context):
-        if context.area.spaces.active.context == "MATERIAL":
-            if context.material:
-                has_name = context.material.name in db.cx.material_names()
-            else:
-                has_name = False
-            op = self.layout.operator(
-                    "matlib.send_material",
-                    emboss=not has_name,
-                    icon=["FORWARD","FILE_TICK"][has_name])
-            self.layout.menu(
-                    "MATLIB_MT_mats_menu",
-                    icon="MATERIAL")
-            self.layout.menu(
-                    "MATLIB_MT_path_menu",
-                    icon="FILEBROWSER")
+        if context.material:
+            has_name = context.material.name in db.cx.material_names()
+        else:
+            has_name = False
+        op = self.layout.operator(
+                "matlib.send_material",
+                emboss=not has_name,
+                icon=["FORWARD","FILE_TICK"][has_name])
+        self.layout.menu(
+                "MATLIB_MT_mats_menu",
+                icon="MATERIAL")
+        self.layout.menu(
+                "MATLIB_MT_path_menu",
+                icon="FILEBROWSER")
 
 
-def header_draw(self,context):
+def prop_header_draw(self,context):
     if context.area.spaces.active.context == "MATERIAL":
         layout = self.layout.row(align=True)
         layout.menu("MATLIB_MT_main_menu",text="",icon="THREE_DOTS")
 
+def node_header_draw(self,context):
+    layout = self.layout.row(align=True)
+    layout.menu("MATLIB_MT_main_menu",text="",icon="THREE_DOTS")
+
 def register():
     list(map(bpy.utils.register_class,_()))
-    bpy.types.PROPERTIES_HT_header.append(header_draw)
+    # bpy.types.PROPERTIES_PT_navigation_bar.append(prop_header_draw)
+    bpy.types.PROPERTIES_HT_header.append(prop_header_draw)
+    bpy.types.NODE_HT_header.append(node_header_draw)
     ap = db.cx.active_path
     if ap:
         db.cx.prune_gone_blends(ap)
         db.cx.commit()
 
 def unregister():
-    bpy.utils.previews.remove(icons_d)
-    bpy.types.PROPERTIES_PT_navigation_bar.remove(header_draw)
+    # bpy.types.PROPERTIES_PT_navigation_bar.remove(prop_header_draw)
+    bpy.types.NODE_HT_header.remove(node_header_draw)
     list(map(bpy.utils.unregister_class,_()))
 
